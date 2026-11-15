@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.example.game2048.core.ScoreStorage
 import com.example.game2048.ui.Game2048App
 import com.example.game2048.ui.theme.Game2048Theme
 
@@ -11,9 +12,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val storage = ScoreStorage(this)
+        val bestScore = storage.loadBestScore()
+
         setContent {
             Game2048Theme {
-                Game2048App()
+                Game2048App(
+                    initialBestScore = bestScore,
+                    onBestScoreChanged = { storage.saveBestScore(it) }
+                )
             }
         }
     }
