@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -22,18 +23,18 @@ fun GameOverOverlay(onRestart: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x88EEE4DA)),
+            .background(Color(0xCCFAF8EF)),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("Game Over!", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF776E65))
         Button(
             onClick = onRestart,
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+            colors = ButtonDefaults.buttonColors(
                 containerColor = UiButton,
                 contentColor = UiButtonText
             ),
-            modifier = Modifier.padding(8.dp)
+            modifier = Modifier.padding(top = 12.dp)
         ) {
             Text("Try Again", fontWeight = FontWeight.Bold)
         }
@@ -45,7 +46,7 @@ fun WinOverlay(onContinue: () -> Unit, onRestart: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x88EEE4DA)),
+            .background(Color(0xCCFAF8EF)),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -54,21 +55,21 @@ fun WinOverlay(onContinue: () -> Unit, onRestart: () -> Unit) {
         androidx.compose.foundation.layout.Row {
             Button(
                 onClick = onContinue,
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                colors = ButtonDefaults.buttonColors(
                     containerColor = UiButton,
                     contentColor = UiButtonText
                 ),
-                modifier = Modifier.padding(8.dp)
+                modifier = Modifier.padding(6.dp)
             ) {
                 Text("Keep Going", fontWeight = FontWeight.Bold)
             }
             Button(
                 onClick = onRestart,
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                colors = ButtonDefaults.buttonColors(
                     containerColor = UiButton,
                     contentColor = UiButtonText
                 ),
-                modifier = Modifier.padding(8.dp)
+                modifier = Modifier.padding(6.dp)
             ) {
                 Text("New Game", fontWeight = FontWeight.Bold)
             }
