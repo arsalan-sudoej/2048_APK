@@ -9,18 +9,23 @@ import com.example.game2048.ui.Game2048App
 import com.example.game2048.ui.theme.Game2048Theme
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         val storage = ScoreStorage(this)
-        val bestScore = storage.loadBestScore()
+        val savedState = storage.loadGame()
+        val bestScore = maxOf(storage.loadBestScore(), savedState?.bestScore ?: 0)
 
         setContent {
-            Game2048Theme {
+            Game2048Theme(darkTheme = storage.isDarkMode()) {
                 Game2048App(
                     initialBestScore = bestScore,
-                    onBestScoreChanged = { storage.saveBestScore(it) }
+                    initialSavedState = savedState,
+                    onBestScoreChanged = { storage.saveBestScore(it) },
+                    onStateChanged = { state -> storage.saveGame(state) },
+                    storage = storage
                 )
             }
         }
