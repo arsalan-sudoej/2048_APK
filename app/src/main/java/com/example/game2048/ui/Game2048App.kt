@@ -1,7 +1,6 @@
 package com.example.game2048.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,14 +8,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -32,183 +35,167 @@ import com.example.game2048.core.GameEngine
 import com.example.game2048.core.GameState
 import com.example.game2048.ui.theme.BoardBackground
 import com.example.game2048.ui.theme.BoardEmpty
+import com.example.game2048.ui.theme.UiBackground
+import com.example.game2048.ui.theme.UiButton
+import com.example.game2048.ui.theme.UiButtonText
 import com.example.game2048.ui.theme.UiText
+import kotlin.math.abs
 
 @Composable
 fun Game2048App() {
     var state by remember { mutableStateOf(GameState.newGame(bestScore = 0)) }
-    var bestScore by remember { mutableStateOf(0) }
-
-    val swipeThreshold = 24.dp
+    var showWin by remember { mutableStateOf(false) }
 
     fun onMove(direction: Direction) {
-        GameEngine.move(state, direction)?.let { newState ->
-            state = newState
-            if (newState.bestScore > bestScore) {
-                bestScore = newState.bestScore
-            }
-        }
+        val newState = GameEngine.move(state, direction) ?: return
+        if (newState.isWin && !state.isWin) showWin = true
+        state = newState
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(UiBackground())
-            .padding(16.dp),
+            .background(UiBackground)
+            .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Title
-        Text(
-            text = "2048",
-            fontSize = 48.sp,
-            fontWeight = FontWeight.Bold,
-            color = UiText()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Score row
+        // Header: title + scores + new game
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text("SCORE", fontSize = 12.sp, color = UiText())
-                Text(
-                    "${state.score}",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = UiText()
-                )
-            }
-            Column {
-                Text("BEST", fontSize = 12.sp, color = UiText())
-                Text(
-                    "${state.bestScore}",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = UiText()
-                )
-            }
-            Button(
-                onClick = { state = GameState.newGame(state.bestScore) },
-                text = "NEW GAME"
+            Text(
+                text = "2048",
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Bold,
+                color = UiText
             )
+            ScoreBox(label = "SCORE", value = state.score)
+            ScoreBox(label = "BEST", value = state.bestScore)
+            Button(
+                onClick = {
+                    state = GameState.newGame(state.bestScore)
+                    showWin = false
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = UiButton,
+                    contentColor = UiButtonText
+                ),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    horizontal = 10.dp, vertical = 4.dp
+                )
+            ) {
+                Text("NEW", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Board with swipe input
+        var dragX by remember { mutableFloatStateOf(0f) }
+        var dragY by remember { mutableFloatStateOf(0f) }
 
-        // Board
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .background(BoardBackground(), RoundedCornerShape(8.dp))
+                .background(BoardBackground, RoundedCornerShape(10.dp))
+                .padding(6.dp)
                 .pointerInput(Unit) {
                     detectDragGestures(
-                        onDrag = { change, dragAmount ->
+                        onDrag = { change, amount ->
                             change.consume()
+                            dragX += amount.x
+                            dragY += amount.y
                         },
                         onDragEnd = {
-                            val dx = accumulatedDrag?.first ?: 0f
-                            val dy = accumulatedDrag?.second ?: 0f
-                            accumulatedDrag = null
-                            if (kotlin.math.abs(dx) > thresholdPx || kotlin.math.abs(dy) > thresholdPx) {
-                                if (kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
-                                    onMove(if (dx > 0) Direction.RIGHT else Direction.LEFT)
+                            val threshold = 40f
+                            if (abs(dragX) > threshold || abs(dragY) > threshold) {
+                                if (abs(dragX) > abs(dragY)) {
+                                    onMove(if (dragX > 0) Direction.RIGHT else Direction.LEFT)
                                 } else {
-                                    onMove(if (dy > 0) Direction.DOWN else Direction.UP)
+                                    onMove(if (dragY > 0) Direction.DOWN else Direction.UP)
+                                }
+                            }
+                            dragX = 0f
+                            dragY = 0f
+                        }
+                    )
+                }
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                for (r in 0..3) {
+                    Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        for (c in 0..3) {
+                            val value = state.board[r][c]
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .padding(3.dp)
+                                    .background(
+                                        if (value == 0) BoardEmpty else tileColor(value),
+                                        RoundedCornerShape(6.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (value > 0) {
+                                    Text(
+                                        text = "$value",
+                                        color = if (value >= 8) Color(0xFFF9F6F2) else UiText,
+                                        fontSize = if (value < 100) 26.sp else if (value < 1000) 20.sp else 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
-                    ) { _, dragAmount ->
-                        accumulatedDrag = Pair(
-                            (accumulatedDrag?.first ?: 0f) + dragAmount.x,
-                            (accumulatedDrag?.second ?: 0f) + dragAmount.y
-                        )
-                    }
-                }
-        ) {
-            val cell = 1f / 4f
-            val pad = 0.02f
-            for (r in 0..3) {
-                for (c in 0..3) {
-                    val value = state.board[r][c]
-                    if (value > 0) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .offsetFraction(x = c * cell + pad, y = r * cell + pad)
-                                .sizeFraction(cell - 2 * pad)
-                                .background(tileColor(value), RoundedCornerShape(6.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "$value",
-                                color = if (value >= 8) Color.White else UiText(),
-                                fontSize = when {
-                                    value < 100 -> 28.sp
-                                    value < 1000 -> 22.sp
-                                    else -> 18.sp
-                                },
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .offsetFraction(x = c * cell + pad, y = r * cell + persistence)
-                                .sizeFraction(cell - 2 * pad)
-                                .background(BoardEmpty(), RoundedCornerShape(6.dp))
-                        )
                     }
                 }
             }
+
+            if (state.isGameOver) {
+                GameOverOverlay(
+                    onRestart = {
+                        state = GameState.newGame(state.bestScore)
+                    }
+                )
+            }
+            if (showWin) {
+                WinOverlay(
+                    onContinue = { showWin = false },
+                    onRestart = {
+                        state = GameState.newGame(state.bestScore)
+                        showWin = false
+                    }
+                )
+            }
         }
 
-        if (state.isGameOver) {
-            GameOverOverlay(
-                onRestart = { state = GameState.newGame(state.bestScore) }
-            )
-        }
-        if (state.isWin) {
-            WinOverlay(
-                onContinue = {
-                    state = state.copy(isWin = false)
-                },
-                onRestart = { state = GameState.newGame(state.bestScore) }
-            )
-        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Swipe to move tiles. Merge tiles to reach 2048!",
+            fontSize = 13.sp,
+            color = UiText
+        )
     }
 }
 
-private var accumulatedDrag: Pair<Float, Float>? = null
-private var thresholdPx: Float = 80f
-
 @Composable
-fun UiBackground(): Color = com.example.game2048.ui.theme.UiBackground
-
-@Composable
-fun UiText(): Color = com.example.game2048.ui.theme.UiText
-
-@Composable
-fun BoardBackground(): Color = com.example.game2048.ui.theme.BoardBackground
-
-@Composable
-fun BoardEmpty(): Color = com.example.game2048.ui.theme.BoardEmpty
-
-@Composable
-fun Button(onClick: () -> Unit, text: String) {
-    androidx.compose.material3.Button(
-        onClick = onClick,
-        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-            containerColor = com.example.game2048.ui.theme.UiButton,
-            contentColor = com.example.game2048.ui.theme.UiButtonText
-        )
+private fun ScoreBox(label: String, value: Int) {
+    Column(
+        modifier = Modifier
+            .background(UiScoreBackground, RoundedCornerShape(6.dp))
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = text, fontWeight = FontWeight.Bold)
+        Text(label, fontSize = 10.sp, color = Color(0xFFEEE4DA), fontWeight = FontWeight.Bold)
+        Text(
+            "$value",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFF9F6F2)
+        )
     }
 }
 
@@ -225,26 +212,3 @@ fun tileColor(value: Int): Color = when (value) {
     1024 -> com.example.game2048.ui.theme.Tile1024
     else -> com.example.game2048.ui.theme.Tile2048
 }
-
-fun Modifier.offsetFraction(x: Float, y: Float): Modifier = this.then(
-    Modifier.layout { measurable, constraints ->
-        val placeable = measurable.measure(constraints)
-        layout(placeable.width, placeable.height) {
-            placeable.placeRelative((x * placeable.width).toInt(), (y * placeable.height).toInt())
-        }
-    }
-)
-
-fun Modifier.sizeFraction(fraction: Float): Modifier = this.then(
-    Modifier.layout { measurable, constraints ->
-        val wrapped = constraints.copy(minWidth = 0, minHeight = 0)
-        val placeable = measurable.measure(
-            androidx.compose.foundation.layout.wrapContentSize(unbounded = true).run {
-                wrapped
-            }
-        )
-        layout((fraction * placeable.width).toInt(), (fraction * placeable.height).toInt()) {
-            placeable.placeRelative(0, 0)
-        }
-    }
-)
