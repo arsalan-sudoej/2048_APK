@@ -1,6 +1,5 @@
 <resources>
     <style name="Theme.Game2048" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@null</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
 </resources>
