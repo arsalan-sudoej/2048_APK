@@ -23,6 +23,7 @@ object GameEngine {
         }
 
         var scoreGain = 0
+        var merges = 0
 
         // Slide each line left and merge equal neighbours once.
         val slid = transformed.map { line ->
@@ -35,6 +36,7 @@ object GameEngine {
                     result[i] = merged
                     result.removeAt(i + 1)
                     scoreGain += merged
+                    merges++
                 }
                 i++
             }
@@ -63,6 +65,7 @@ object GameEngine {
             score = newScore,
             bestScore = maxOf(state.bestScore, newScore),
             moveCount = state.moveCount + 1,
+            mergeCount = state.mergeCount + merges,
             isGameOver = isGameOver(mutable),
             isWin = isWin
         )
@@ -82,6 +85,10 @@ object GameEngine {
 
     fun hasTile(board: List<List<Int>>, value: Int): Boolean {
         return board.any { row -> row.contains(value) }
+    }
+
+    fun highestTile(board: List<List<Int>>): Int {
+        return board.maxOfOrNull { it.maxOrNull() ?: 0 } ?: 0
     }
 
     fun isGameOver(board: List<List<Int>>): Boolean {
