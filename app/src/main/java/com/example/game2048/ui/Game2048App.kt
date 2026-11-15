@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -35,21 +36,41 @@ import com.example.game2048.core.GameEngine
 import com.example.game2048.core.GameState
 import com.example.game2048.ui.theme.BoardBackground
 import com.example.game2048.ui.theme.BoardEmpty
+import com.example.game2048.ui.theme.Tile2
+import com.example.game2048.ui.theme.Tile1024
+import com.example.game2048.ui.theme.Tile128
+import com.example.game2048.ui.theme.Tile16
+import com.example.game2048.ui.theme.Tile256
+import com.example.game2048.ui.theme.Tile32
+import com.example.game2048.ui.theme.Tile4
+import com.example.game2048.ui.theme.Tile512
+import com.example.game2048.ui.theme.Tile64
+import com.example.game2048.ui.theme.Tile8
 import com.example.game2048.ui.theme.UiBackground
 import com.example.game2048.ui.theme.UiButton
 import com.example.game2048.ui.theme.UiButtonText
+import com.example.game2048.ui.theme.UiScoreBackground
 import com.example.game2048.ui.theme.UiText
 import kotlin.math.abs
 
 @Composable
-fun Game2048App() {
-    var state by remember { mutableStateOf(GameState.newGame(bestScore = 0)) }
+fun Game2048App(
+    initialBestScore: Int = 0,
+    onBestScoreChanged: (Int) -> Unit = {}
+) {
+    var state by remember { mutableStateOf(GameState.newGame(bestScore = initialBestScore)) }
     var showWin by remember { mutableStateOf(false) }
 
     fun onMove(direction: Direction) {
         val newState = GameEngine.move(state, direction) ?: return
         if (newState.isWin && !state.isWin) showWin = true
+        if (newState.bestScore > state.bestScore) onBestScoreChanged(newState.bestScore)
         state = newState
+    }
+
+    fun restart() {
+        state = GameState.newGame(state.bestScore)
+        showWin = false
     }
 
     Column(
@@ -59,7 +80,6 @@ fun Game2048App() {
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Header: title + scores + new game
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -76,23 +96,17 @@ fun Game2048App() {
             ScoreBox(label = "SCORE", value = state.score)
             ScoreBox(label = "BEST", value = state.bestScore)
             Button(
-                onClick = {
-                    state = GameState.newGame(state.bestScore)
-                    showWin = false
-                },
+                onClick = ::restart,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = UiButton,
                     contentColor = UiButtonText
                 ),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    horizontal = 10.dp, vertical = 4.dp
-                )
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text("NEW", fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
 
-        // Board with swipe input
         var dragX by remember { mutableFloatStateOf(0f) }
         var dragY by remember { mutableFloatStateOf(0f) }
 
@@ -155,20 +169,10 @@ fun Game2048App() {
             }
 
             if (state.isGameOver) {
-                GameOverOverlay(
-                    onRestart = {
-                        state = GameState.newGame(state.bestScore)
-                    }
-                )
+                GameOverOverlay(onRestart = ::restart)
             }
             if (showWin) {
-                WinOverlay(
-                    onContinue = { showWin = false },
-                    onRestart = {
-                        state = GameState.newGame(state.bestScore)
-                        showWin = false
-                    }
-                )
+                WinOverlay(onContinue = { showWin = false }, onRestart = ::restart)
             }
         }
 
@@ -199,16 +203,16 @@ private fun ScoreBox(label: String, value: Int) {
     }
 }
 
-fun tileColor(value: Int): Color = when (value) {
-    2 -> com.example.game2048.ui.theme.Tile2
-    4 -> com.example.game2048.ui.theme.Tile4
-    8 -> com.example.game2048.ui.theme.Tile8
-    16 -> com.example.game2048.ui.theme.Tile16
-    32 -> com.example.game2048.ui.theme.Tile32
-    64 -> com.example.game2048.ui.theme.Tile64
-    128 -> com.example.game2048.ui.theme.Tile128
-    256 -> com.example.game2048.ui.theme.Tile256
-    512 -> com.example.game2048.ui.theme.Tile512
-    1024 -> com.example.game2048.ui.theme.Tile1024
+private fun tileColor(value: Int): Color = when (value) {
+    2 -> Tile2
+    4 -> Tile4
+    8 -> Tile8
+    16 -> Tile16
+    32 -> Tile32
+    64 -> Tile64
+    128 -> Tile128
+    256 -> Tile256
+    512 -> Tile512
+    1024 -> Tile1024
     else -> com.example.game2048.ui.theme.Tile2048
 }
