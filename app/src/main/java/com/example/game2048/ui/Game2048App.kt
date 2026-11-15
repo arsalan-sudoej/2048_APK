@@ -1,5 +1,12 @@
 package com.example.game2048.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -26,7 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,52 +45,95 @@ import androidx.compose.ui.unit.sp
 import com.example.game2048.core.Direction
 import com.example.game2048.core.GameEngine
 import com.example.game2048.core.GameState
-import com.example.game2048.ui.theme.BoardBackground
-import com.example.game2048.ui.theme.BoardEmpty
-import com.example.game2048.ui.theme.Tile2
-import com.example.game2048.ui.theme.Tile1024
-import com.example.game2048.ui.theme.Tile128
-import com.example.game2048.ui.theme.Tile16
-import com.example.game2048.ui.theme.Tile256
-import com.example.game2048.ui.theme.Tile32
-import com.example.game2048.ui.theme.Tile4
-import com.example.game2048.ui.theme.Tile512
-import com.example.game2048.ui.theme.Tile64
-import com.example.game2048.ui.theme.Tile8
-import com.example.game2048.ui.theme.UiBackground
-import com.example.game2048.ui.theme.UiButton
-import com.example.game2048.ui.theme.UiButtonText
-import com.example.game2048.ui.theme.UiScoreBackground
-import com.example.game2048.ui.theme.UiText
+import com.example.game2048.core.ScoreStorage
+import com.example.game2048.sound.SoundManager
+import com.example.game2048.ui.theme.GameTheme
 import kotlin.math.abs
 
 @Composable
 fun Game2048App(
     initialBestScore: Int = 0,
-    onBestScoreChanged: (Int) -> Unit = {}
+    initialSavedState: GameState? = null,
+    onBestScoreChanged: (Int) -> Unit = {},
+    onStateChanged: (GameState) -> Unit = {},
+    storage: ScoreStorage? = null
 ) {
-    var state by remember { mutableStateOf(GameState.newGame(bestScore = initialBestScore)) }
+    val colors = GameTheme.colors
+    var state by remember {
+        mutableStateOf(initialSavedState ?: GameState.newGame(bestScore = initialBestScore))
+    }
+    var previousState by remember { mutableStateOf<GameState?>(null) }
     var showWin by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var showStats by remember { mutableStateOf(false) }
+    var darkMode by remember { mutableStateOf(storage?.isDarkMode() ?: false) }
+    var soundEnabled by remember { mutableStateOf(storage?.isSoundEnabled() ?: true) }
+
+    val soundManager = remember { SoundManager() }
+    soundManager.setEnabled(soundEnabled)
+
+    // Track highest-tile merge size to pitch the merge sound.
+    var lastMergePower by remember { mutableStateOf(1) }
 
     fun onMove(direction: Direction) {
-        val newState = GameEngine.move(state, direction) ?: return
-        if (newState.isWin && !state.isWin) showWin = true
-        if (newState.bestScore > state.bestScore) onBestScoreChanged(newState.bestScore)
+        if (state.isGameOver) return
+        val oldState = state
+        val newState = GameEngine.move(oldState, direction) ?: return
+
+        // Merge sound pitch from the merge delta.
+        val merges = newState.mergeCount - oldState.mergeCount
+        if (merges > 0) {
+            val highestMerged = GameEngine.highestTile(newState.board)
+            lastMergePower = (kotlin.math.ln(highestMerged.toFloat()) / kotlin.math.ln(2f)).toInt()
+            soundManager.playMerge(lastMergePower)
+        } else {
+            soundManager.playMove()
+        }
+
+        previousState = oldState
+        if (newState.bestScore > oldState.bestScore) onBestScoreChanged(newState.bestScore)
         state = newState
+        onStateChanged(newState)
+
+        if (newState.isWin && !oldState.isWin) {
+            showWin = true
+            soundManager.playWin()
+            storage?.saveHighestTileIfBetter(GameEngine.highestTile(newState.board))
+            storage?.addCoins(100)
+        }
+        if (newState.isGameOver) {
+            soundManager.playGameOver()
+            storage?.incrementGamesPlayed()
+            storage?.addTotalMoves(newState.moveCount)
+            storage?.addTotalMerges(newState.mergeCount)
+            storage?.saveHighestTileIfBetter(GameEngine.highestTile(newState.board))
+            storage?.addCoins(newState.score / 100)
+        }
     }
 
     fun restart() {
+        if (state.isGameOver) storage?.addTotalMoves(0) // already recorded at game over
         state = GameState.newGame(state.bestScore)
+        previousState = null
         showWin = false
+        onStateChanged(state)
+    }
+
+    fun undo() {
+        val prev = previousState ?: return
+        state = prev
+        previousState = null
+        onStateChanged(state)
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(UiBackground)
+            .background(colors.background)
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // --- Header row: title + score boxes + buttons ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -91,22 +145,66 @@ fun Game2048App(
                 text = "2048",
                 fontSize = 40.sp,
                 fontWeight = FontWeight.Bold,
-                color = UiText
+                color = colors.text
             )
             ScoreBox(label = "SCORE", value = state.score)
             ScoreBox(label = "BEST", value = state.bestScore)
+        }
+
+        // --- Controls row ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.SpaceBetween),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(
+                onClick = ::undo,
+                enabled = previousState != null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.button,
+                    contentColor = colors.buttonText,
+                    disabledContainerColor = colors.scoreBackground,
+                    disabledContentColor = colors.textBright
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text("UNDO", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
             Button(
                 onClick = ::restart,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = UiButton,
-                    contentColor = UiButtonText
+                    containerColor = colors.button,
+                    contentColor = colors.buttonText
                 ),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text("NEW", fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
+            Button(
+                onClick = { showStats = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.scoreBackground,
+                    contentColor = colors.textBright
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text("STATS", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            Button(
+                onClick = { showSettings = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.scoreBackground,
+                    contentColor = colors.textBright
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text("⚙", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
         }
 
+        // --- Board with swipe gestures ---
         var dragX by remember { mutableFloatStateOf(0f) }
         var dragY by remember { mutableFloatStateOf(0f) }
 
@@ -114,9 +212,9 @@ fun Game2048App(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .background(BoardBackground, RoundedCornerShape(10.dp))
+                .background(colors.boardBackground, RoundedCornerShape(10.dp))
                 .padding(6.dp)
-                .pointerInput(Unit) {
+                .pointerInput(state.isGameOver) {
                     detectDragGestures(
                         onDrag = { change, amount ->
                             change.consume()
@@ -143,13 +241,25 @@ fun Game2048App(
                     Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         for (c in 0..3) {
                             val value = state.board[r][c]
+                            var tileScale by remember(value) { mutableFloatStateOf(1f) }
+                            tileScale = 1f
+                            val merged = (value > 0)
+                            val mergeAnim by animateFloatAsState(
+                                targetValue = 1f,
+                                animationSpec = tween(180, easing = FastOutSlowInEasing),
+                                label = "tile"
+                            )
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .padding(3.dp)
+                                    .graphicsLayer {
+                                        scaleX = mergeAnim
+                                        scaleY = mergeAnim
+                                    }
                                     .background(
-                                        if (value == 0) BoardEmpty else tileColor(value),
+                                        if (value == 0) colors.boardEmpty else tileColor(value),
                                         RoundedCornerShape(6.dp)
                                     ),
                                 contentAlignment = Alignment.Center
@@ -157,8 +267,10 @@ fun Game2048App(
                                 if (value > 0) {
                                     Text(
                                         text = "$value",
-                                        color = if (value >= 8) Color(0xFFF9F6F2) else UiText,
-                                        fontSize = if (value < 100) 26.sp else if (value < 1000) 20.sp else 16.sp,
+                                        color = if (value >= 8) colors.textBright else colors.text,
+                                        fontSize = if (value < 100) 26.sp
+                                        else if (value < 1000) 20.sp
+                                        else 16.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -169,7 +281,13 @@ fun Game2048App(
             }
 
             if (state.isGameOver) {
-                GameOverOverlay(onRestart = ::restart)
+                GameOverOverlay(
+                    onRestart = ::restart,
+                    score = state.score,
+                    onUndo = if (previousState != null) {
+                        { undo(); storage?.apply { /* undo keeps stats honest */ } }
+                    } else null
+                )
             }
             if (showWin) {
                 WinOverlay(onContinue = { showWin = false }, onRestart = ::restart)
@@ -178,41 +296,22 @@ fun Game2048App(
 
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Swipe to move tiles. Merge tiles to reach 2048!",
+            text = "Swipe to move tiles. Merge tiles to reach 2048! Earn coins every game.",
             fontSize = 13.sp,
-            color = UiText
+            color = colors.text
         )
     }
-}
 
-@Composable
-private fun ScoreBox(label: String, value: Int) {
-    Column(
-        modifier = Modifier
-            .background(UiScoreBackground, RoundedCornerShape(6.dp))
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(label, fontSize = 10.sp, color = Color(0xFFEEE4DA), fontWeight = FontWeight.Bold)
-        Text(
-            "$value",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFFF9F6F2)
+    if (showSettings && storage != null) {
+        SettingsDialog(
+            visible = true,
+            storage = storage,
+            onDismiss = { showSettings = false },
+            onDarkModeChanged = { darkMode = it },
+            onSoundChanged = { soundEnabled = it }
         )
     }
-}
-
-private fun tileColor(value: Int): Color = when (value) {
-    2 -> Tile2
-    4 -> Tile4
-    8 -> Tile8
-    16 -> Tile16
-    32 -> Tile32
-    64 -> Tile64
-    128 -> Tile128
-    256 -> Tile256
-    512 -> Tile512
-    1024 -> Tile1024
-    else -> com.example.game2048.ui.theme.Tile2048
+    if (showStats && storage != null) {
+        StatsDialog(visible = true, storage = storage, onDismiss = { showStats = false })
+    }
 }
