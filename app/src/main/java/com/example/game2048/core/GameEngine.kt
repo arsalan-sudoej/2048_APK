@@ -15,12 +15,17 @@ object GameEngine {
     fun move(state: GameState, direction: Direction): GameState? {
         if (state.isGameOver) return null
 
-        val board = state.board.map { it.toMutableList() }
-        var moved = false
-        var scoreGain = 0
-        val mergedTiles = mutableListOf<Pair<Int, Int>>>()
+        val transformed = when (direction) {
+            Direction.LEFT -> state.board.map { it.toMutableList() }
+            Direction.RIGHT -> state.board.map { it.reversed().toMutableList() }
+            Direction.UP -> transpose(state.board).map { it.toMutableList() }
+            Direction.DOWN -> transpose(state.board).map { it.reversed().toMutableList() }
+        }
 
-        fun slideLine(line: List<Int>): List<Int> {
+        var scoreGain = 0
+
+        // Slide each line left and merge equal neighbours once.
+        val slid = transformed.map { line ->
             val nonZero = line.filter { it != 0 }
             val result = nonZero.toMutableList()
             var i = 0
@@ -30,59 +35,35 @@ object GameEngine {
                     result[i] = merged
                     result.removeAt(i + 1)
                     scoreGain += merged
-                    moved = true
                 }
                 i++
             }
-            while (result.size < 4) result.add(0)
-            return result
+            while (result.size < line.size) result.add(0)
+            result
         }
 
-        fun transform(board: List<MutableList<Int>>, d: Direction): List<List<Int>> {
-            return when (d) {
-                Direction.LEFT -> board
-                Direction.RIGHT -> board.map { it.reversed() }
-                Direction.UP -> transpose(board)
-                Direction.DOWN -> transpose(board).map { it.reversed() }
-            }
+        // Transform back to the original orientation.
+        val newBoard = when (direction) {
+            Direction.LEFT -> slid
+            Direction.RIGHT -> slid.map { it.reversed() }
+            Direction.UP -> transpose(slid)
+            Direction.DOWN -> transpose(slid).map { it.reversed() }
         }
 
-        fun transpose(b: List<MutableList<Int>>): List<List<Int>> {
-            return List(4) { r -> List(4) { c -> b[c][r] } }
-        }
+        if (newBoard == state.board) return null
 
-        val (transformed, reversed, transposed) = when (direction) {
-            Direction.LEFT -> Triple(board, false, false)
-            Direction.RIGHT -> Triple(board.map { it.reversed().toMutableList() }, true, false)
-            Direction.UP -> Triple(transpose(board).map { it.toMutableList() }, false, true)
-            Direction.DOWN -> {
-                val t = transpose(board).map { it.reversed() }.map { it.toMutableList() }
-                Triple(t, true, true)
-            }
-        }
-
-        val slid = transformed.map { slideLine(it) }.map { it.toMutableList() }
-
-        val newBoard = when {
-            !reversed && !transposed -> slid
-            reversed && !transposed -> slid.map { it.reversed().toMutableList() }
-            !reversed && transposed -> transpose(slid).map { it.toMutableList() }
-            else -> transpose(slid.map { it.reversed() }).map { it.toMutableList() }
-        }
-
-        if (!moved) return null
-
-        spawnRandomTile(newBoard)
+        val mutable = newBoard.map { it.toMutableList() }
+        spawnRandomTile(mutable)
 
         val newScore = state.score + scoreGain
-        val isWin = state.isWin || hasTile(newBoard, WIN_TILE)
+        val isWin = state.isWin || hasTile(mutable, WIN_TILE)
 
         return state.copy(
-            board = newBoard,
+            board = mutable,
             score = newScore,
             bestScore = maxOf(state.bestScore, newScore),
             moveCount = state.moveCount + 1,
-            isGameOver = isGameOver(newBoard),
+            isGameOver = isGameOver(mutable),
             isWin = isWin
         )
     }
@@ -104,9 +85,7 @@ object GameEngine {
     }
 
     fun isGameOver(board: List<List<Int>>): Boolean {
-        val full = board.all { row -> row.all { it != 0 } }
-        if (!full) return false
-        // Any adjacent equal pair means a merge is still possible.
+        if (board.any { row -> row.any { it == 0 } }) return false
         for (r in 0..3) {
             for (c in 0..3) {
                 val v = board[r][c]
@@ -115,6 +94,10 @@ object GameEngine {
             }
         }
         return true
+    }
+
+    private fun transpose(board: List<List<Int>>): List<List<Int>> {
+        return List(4) { r -> List(4) { c -> board[c][r] } }
     }
 }
 
