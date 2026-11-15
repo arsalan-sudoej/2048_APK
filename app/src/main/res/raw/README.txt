@@ -1,1 +1,7 @@
-UGFja2FnZTogY29tLmV4YW1wbGUuZ2FtZTIwNDgKQ2xhc3MgTWFpbiB7CiAgc3RhdGljIHZhbCBib29sZWFuQXJyYXkoYXJyOiBJbnRBcnJheSwgaW5kZXg6IEludCk6IEJvb2xlYW4gPSBhcnIuaW5kZXggIT0gMAp9
+package com.example.game2048.sound
+
+/**
+ * No-op placeholder for sound resources directory.
+ * All sound effects are synthesized at runtime by SoundManager
+ * (AudioTrack), so no binary audio files are required.
+ */
