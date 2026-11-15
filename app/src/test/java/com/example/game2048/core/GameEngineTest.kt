@@ -12,7 +12,7 @@ class GameEngineTest {
     private fun boardOf(vararg rows: IntArray): List<List<Int>> = rows.map { it.toList() }
 
     @Test
-    fun `move left merges equal tiles`() {
+    fun moveLeftMergesEqualTiles() {
         val board = boardOf(
             intArrayOf(2, 2, 0, 0),
             intArrayOf(0, 0, 0, 0),
@@ -23,13 +23,12 @@ class GameEngineTest {
         val moved = GameEngine.move(state, Direction.LEFT)
 
         assertNotNull(moved)
-        // First row becomes [4, 0, 0, 0] plus one spawned tile somewhere.
         assertEquals(4, moved!!.board[0][0])
         assertEquals(4, moved.score)
     }
 
     @Test
-    fun `move right slides tiles to the right`() {
+    fun moveRightSlidesTiles() {
         val board = boardOf(
             intArrayOf(2, 0, 0, 0),
             intArrayOf(0, 0, 0, 0),
@@ -40,25 +39,23 @@ class GameEngineTest {
         val moved = GameEngine.move(state, Direction.RIGHT)
 
         assertNotNull(moved)
-        // Tile slid to column 3 (plus one spawned tile).
         assertEquals(2, moved!!.board[0][3])
     }
 
     @Test
-    fun `invalid move returns null when nothing changes`() {
+    fun invalidMoveReturnsNull() {
         val board = boardOf(
             intArrayOf(2, 0, 0, 0),
             intArrayOf(0, 2, 0, 0),
-            intAnimationFrame = intArrayOf(0, 0, 2, 0),
-            intArrayOf(0, 0,  file: 0, 2)
+            intArrayOf(0, 0, 2, 0),
+            intArrayOf(0, 0, 0, 2)
         )
         val state = GameState.from(board)
-        // With this configuration a LEFT move changes nothing.
         assertNull(GameEngine.move(state, Direction.LEFT))
     }
 
     @Test
-    fun `full board with no merges is game over`() {
+    fun fullBoardNoMergesIsGameOver() {
         val board = boardOf(
             intArrayOf(2, 4, 2, 4),
             intArrayOf(4, 2, 4, 2),
@@ -69,7 +66,7 @@ class GameEngineTest {
     }
 
     @Test
-    fun `full board with adjacent merge is not game over`() {
+    fun fullBoardWithAdjacentMergeIsNotGameOver() {
         val board = boardOf(
             intArrayOf(2, 4, 2, 4),
             intArrayOf(4, 2, 4, 2),
@@ -80,7 +77,7 @@ class GameEngineTest {
     }
 
     @Test
-    fun `win detection finds 2048`() {
+    fun winDetectionFinds2048() {
         val board = boardOf(
             intArrayOf(2048, 0, 0, 0),
             intArrayOf(0, 0, 0, 0),
@@ -91,7 +88,7 @@ class GameEngineTest {
     }
 
     @Test
-    fun `score accumulates from merges`() {
+    fun scoreAccumulatesFromMerges() {
         val board = boardOf(
             intArrayOf(2, 2, 4, 4),
             intArrayOf(0, 0, 0, 0),
@@ -100,6 +97,6 @@ class GameEngineTest {
         )
         val state = GameState.from(board)
         val moved = GameEngine.move(state, Direction.LEFT)
-        assertEquals(4 + 8, moved!!.score)
+        assertEquals(12, moved!!.score)
     }
 }
