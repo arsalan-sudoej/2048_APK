@@ -8,9 +8,59 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+
+/**
+ * Game-specific palette that follows the user's chosen theme
+ * (manual dark mode override is possible via GameColors).
+ */
+data class GameColors(
+    val background: Color,
+    val boardBackground: Color,
+    val boardEmpty: Color,
+    val text: Color,
+    val textBright: Color,
+    val button: Color,
+    val buttonText: Color,
+    val scoreBackground: Color,
+    val overlayScrim: Color
+)
+
+val LightGameColors = GameColors(
+    background = UiBackground,
+    boardBackground = BoardBackground,
+    boardEmpty = BoardEmpty,
+    text = UiText,
+    textBright = UiButtonText,
+    button = UiButton,
+    buttonText = UiButtonText,
+    scoreBackground = UiScoreBackground,
+    overlayScrim = UiOverlayScrim
+)
+
+val DarkGameColors = GameColors(
+    background = UiBackgroundDark,
+    boardBackground = BoardBackgroundDark,
+    boardEmpty = BoardEmptyDark,
+    text = UiTextDark,
+    textBright = UiButtonTextDark,
+    button = UiButtonDark,
+    buttonText = UiButtonTextDark,
+    scoreBackground = UiScoreBackgroundDark,
+    overlayScrim = UiOverlayScrimDark
+)
+
+val LocalGameColors = staticCompositionLocalOf { LightGameColors }
+
+val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(6.dp),
+    medium = RoundedCornerShape(10.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(24.dp)
+)
 
 private val LightColors = lightColorScheme(
     primary = UiButton,
@@ -23,34 +73,34 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF8F7A65),
-    onPrimary = Color(0xFFF9F6F2),
-    secondary = Color(0xFF9E8B78),
-    background = Color(0xFF2B2825),
-    onBackground = Color(0xFFEEE4DA),
-    surface = Color(0xFF2B2825),
-    onSurface = Color(0xFFEEE4DA)
+    primary = UiButtonDark,
+    onPrimary = UiButtonTextDark,
+    secondary = BoardBackgroundDark,
+    background = UiBackgroundDark,
+    onBackground = UiTextDark,
+    surface = UiBackgroundDark,
+    onSurface = UiTextDark
 )
-
-private val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(24.dp)
-)
-
-private val AppTypography = Typography()
 
 @Composable
 fun Game2048Theme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        shapes = AppShapes,
-        typography = AppTypography,
-        content = content
-    )
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalGameColors provides if (darkTheme) DarkGameColors else LightGameColors
+    ) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColors else LightColors,
+            shapes = AppShapes,
+            typography = Typography(),
+            content = content
+        )
+    }
+}
+
+/** Access the current game palette. */
+object GameTheme {
+    val colors: GameColors
+        @Composable get() = LocalGameColors.current
 }
